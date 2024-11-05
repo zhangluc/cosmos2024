@@ -132,9 +132,7 @@ wilcox_test_results <- list(
 
 wilcox_test_results
 
-
 # Explore READHR+SPORTHR on myopia
-
 ggplot(hours,
        aes(x = READHR,
            y = SPORTHR,
@@ -158,6 +156,7 @@ ggplot(hours, aes(x = SPORTHR, y = READHR, color = MYOPIC)) +
 -   After log-transformation, we observed slightly significant (p-value=0.09062) difference of times on reading between healthy and myopic subjects, which is also evident in Mann-Whitney U Test (with p-value=0.102);
 -   Using the logistic regression model including both SPORTHR and READHR, both times are significantly associated with MYOPIC (with p-values at 0.00729 and 0.02689 respectively), with SPORTHR significantly decreasing the chance to have myopia and READHR significantly increasing the chance to have myopia;
 -   The logistic regression model suggests that, every additional hour spent on sports, the log odds of MYOPIC decreases by 0.04747($\pm$ 0.01769) and every additional hour spent on reading, the log odds of MYOPIC increases by 0.08030 ($\pm$ 0.03629).
+
 
 ## Predicting Myopia
 
@@ -345,7 +344,6 @@ par(cex = 0.7) #change font size
 varImpPlot(model, main = "Feature Importance: Mean Decrease in Gini")
 par(cex = 1)
 
-
 #convert to data frame for ggplot
 importance_df <- data.frame(Feature = rownames(importance_scores), 
                             Importance = importance_scores[, 1])
@@ -474,7 +472,6 @@ myopia <- myopia %>%
 myopia$ID <- NULL
 myopia$STUDYYEAR <- NULL
 
-
 #XG BOOST
 # Setting the seed for reproducibility
 set.seed(0)
@@ -563,9 +560,7 @@ my_data <- my_data %>%
 
 my_data <- my_data[, !colnames(myopia)]
 
-
 glimpse(my_data)
-
 
 #XG BOOST
 
@@ -631,11 +626,8 @@ pred_labels <- ifelse(pred > 0.3, 1, 0)
 
 confusionMatrix(factor(pred_labels), factor(as.numeric(testLabel) - 1))
 
-
 #TREE MODEL
 xgb.plot.tree(model = xgb_model, trees = 1)
-
-
 
 #FEATURE IMPORTANCE
 # Calculate feature importance
@@ -643,7 +635,6 @@ importance <- xgb.importance(model = xgb_model)
 
 # Plot feature importance
 xgb.plot.importance(importance_matrix = importance)
-
 
 #CONFUSION MATRIX HEATMAP
 # Predicted labels
@@ -683,8 +674,6 @@ ggplot(cm_df, aes(x = actual, y = predicted, fill = value)) +
        y = "Predicted") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
 
 #BUILDING ROC CURVE 
 
