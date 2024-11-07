@@ -1,10 +1,42 @@
 # COSMOS Project on Juvenile Myopia
 
-**Lucia Zhang, Giang Tran, Luke Owyang, April Pan**
+**Lucia Zhang (Captain), Giang Tran, Luke Owyang, April Pan**
 
 ## Data Introduction
 
+The dataset `myopia_og.csv` includes a total of 618 observations, each reporting the following information,
+
+-   `ID`: Subject identification;
+-   `STUDYYEAR`: Year of the subject entering the study;
+-   `MYOPIC`: Myopia within the first five years of followup (1=Yes, 0=No);
+-   `AGE`: Age at first visit;
+-   `GENDER`: Gender of the subject;
+-   `SPHEQ`: Spherical equivalent refraction;
+-   `AL`: Axial length (mm);
+-   `ACD`: Anterior chamber depth (mm);
+-   `LT`: Lens thickness (mm);
+-   `VCD`: Vitreous champer depth (mm);
+-   `SPORTHR`: Time spent in sports/outdoor activities (hours/week);
+-   `READHR`: Time spent for reading (hours/week);
+-   `COMPHR`: Time spent in using computer (hours/week);
+-   `STUDYHR`: Time spent in studying for school assignments (hours/week);
+-   `TVHR`: Time spent in watching television (hours/week);
+-   `DIOPTERHR`: Composite of near-work activities (hours/week);
+-   `MOMMY`: Whether subject's mother was myopic (1=Yes, 0=No);
+-   `DADMY`: Whether subject's father was myopic (1=Yes, 0=No);
+
+``` r
+data <- read.csv('myopia_og.csv', sep=";", header=TRUE)
+summary(data)
+
+xtabs(~data$MYOPIC)
+```
+
+Since there are 537 healthy subjects and only 81 myopic subjects, the dataset is unbalanced with slight over 13% myopia cases.
+
 ## Data Exploration via Correlation Matrix
+
+We first explore the correlation between different pairs of variables, in particular, the correlation of `MYOPIC` to other variables in terms of Pearson's correlation coefficient.
 
 ``` r
 # Load necessary libraries
@@ -14,11 +46,7 @@ library(reshape2)
 # Load & Clean data
 data <- read.csv('myopia_og.csv', sep=";", header=TRUE)
 
-#data$MYOPIC <- as.numeric(data$MYOPIC)
 xtabs(~data$AGE)
-
-# Excluding 6 subjects at 9 year old
-data <- subset(data, AGE != 9)
 
 # Select only numeric columns for correlation analysis
 numeric_data <- data[sapply(data, is.numeric)]
@@ -27,7 +55,6 @@ numeric_data <- data[sapply(data, is.numeric)]
 anyNA(numeric_data)
 
 # Calculate the correlation matrix
-#correlation_matrix <- cor(numeric_data, use = "complete.obs")
 correlation_matrix <- cor(numeric_data)
 
 # Print the correlation matrix
@@ -51,28 +78,31 @@ ggplot(data = correlation_melted, aes(x = Var1, y = Var2, fill = value)) +
 
 which(abs(correlation_matrix-diag(1,18,18))>0.90)
 cor(numeric_data$VCD,numeric_data$AL)
+
+correlation_matrix[3,]
 ```
 
 **Conclusion:**
 
--   There are only 6 subjects at 9 year old, all others are younger than 9 with ages ranging from 5 to 8;
--   No missing values and all variables coded in numeric values;
--   There is only one pair of variables, AL and VCD, which are correlated over with scale of correlation coefficient over 0.9. In fact their correlation coefficient is 0.94.
+-   There are no missing values and all variables are coded in numeric values;
+-   There is only one pair of variables, AL and VCD, which are correlated over with scale of correlation coefficient over 0.9. In fact their correlation coefficient is 0.94;
+-   Whether the subject is myopic is slightly correlated with Gender (with Pearson's correlation coefficient $\rho=0.0616$), ACD ($\rho=0.1079$), SPORTHR ($\rho=-0.0983$), READHR ($\rho=0.0727$), MOMMY ($\rho=0.1340$), DADMY ($\rho=0.1499$) but rather strongly related to SPHEQ ($\rho=-0.3736$).
 
-## Hypothesis Tests on Association of Hour-related Variables to Myiopia
+## Hypothesis Tests on Association of Different Activity Times with Myopia
+
+We will first explore the association of different activity times with myopia using t-tests.
 
 ``` r
-#install.packages('tidyverse')
 library(tidyverse)
 library(ggplot2)
 library(dplyr)
 
-#setwd('data')
+# Reload the data
 myopia <- read.csv('myopia_og.csv', sep=";", header=TRUE)
-#myopia
 head(myopia)
 summary(myopia)
 
+# Extract only activity times
 hours <- select(myopia, contains("hr"), contains("MYOPIC"))
 
 hours <- hours %>% 
@@ -84,9 +114,12 @@ summary_stats <- hours %>%
   summarise(across(c(SPORTHR, TVHR, COMPHR, READHR, STUDYHR, DIOPTERHR), list(mean = mean, sd = sd, median = median, IQR = IQR), .names = "{col}_{fn}"))
 
 print(t(summary_stats))
+```
 
+We then use boxplots to visualize the difference of these activity times between healthy and myopic subjects.
 
-# Box plots: ALL 6 HOURS
+``` r
+# Boxplots: ALL 6 Activit Times in hours/week
 pivot_longer(hours,
   contains('HR'),
   names_to = "category",
@@ -94,8 +127,11 @@ pivot_longer(hours,
 ) %>%
   ggplot(aes(x = category, y = hours, color = MYOPIC)) +
   geom_boxplot(position = "dodge")
+```
 
-# Too many outliers so consider log-transformation: log(hours+1)
+There are too many outliers shown in each boxplot, implying right-skewed distributions of activity times. So we first consider a log-transformation on each activity time, i.e., `log(hours+1)`, then retake the t-tests.
+
+``` r
 loghours <- log(hours+1)
 loghours$MYOPIC <- hours$MYOPIC
 pivot_longer(loghours,
@@ -119,8 +155,11 @@ t_test_logres <- list(
 )
 
 t_test_logres
+```
 
-# Mann-Whitney U Test (Wilcoxon Rank-Sum Test) directly on hours:
+After the log-transformation, we observe much less number of outliers shown in the boxplots, although there are still some. We further consider Mann-Whitney U test, aka Wilcoxon Rank-Sum test, on the activity hours.
+
+``` r
 wilcox_test_results <- list(
   SPORTHR = wilcox.test(SPORTHR ~ MYOPIC, data = hours), # p-val = 0.004804 -- Significant
   TVHR = wilcox.test(TVHR ~ MYOPIC, data = hours), #p-val = 0.8204
@@ -131,22 +170,45 @@ wilcox_test_results <- list(
 )
 
 wilcox_test_results
+```
 
-# Explore READHR+SPORTHR on myopia
+As the hypothesis tests suggest possible association of `READHR` and `SPORTHR` with `MYOPIC`, we further explore the association with the plot.
+
+``` r
 ggplot(hours,
        aes(x = READHR,
            y = SPORTHR,
            color = MYOPIC)) +
   geom_point()
+```
 
-#logistic regression: sports vs read hours (both seem differ but differently)
+It seems that less `SPROTHR` and more `READHR` are associated with `MYOPIC`. So we resort to logistic regression include both `SPROTHR` and `READHR` in the model and study their association iwht `MYOPIC`.
+
+``` r
 sportread.model <- glm(MYOPIC ~ SPORTHR+READHR, data = hours, family = binomial)
 summary(sportread.model) # SPORTHR: 0.00729; READHR: 0.02689 -- Both significant (alpha=0.05)
+```
 
-ggplot(hours, aes(x = SPORTHR, y = READHR, color = MYOPIC)) +
-  geom_point(size = 2) +
-  labs(x = "Hours Spent on Sports", y = "Hours Spent on Reading", title = "Logistic Regression Decision Boundary") +
-  theme_minimal()
+Aware of possible confounding effects by age and gender, we apply the logistic regression to check the association of each activity time with `MYOPIC`.
+
+``` r
+sporthr.glm <- glm(MYOPIC ~ AGE*GENDER*SPORTHR, data = myopia, family = binomial)
+summary(sporthr.glm) # SPORTHR: 0.00341; AGE:SPORTHR: 0.00792; GENDER:SPORTHR:0.01248; AGE:GENDER:SPORTHR: 0.02307
+
+readhr.glm <- glm(MYOPIC ~ AGE*GENDER*READHR, data = myopia, family = binomial)
+summary(readhr.glm) # None significant
+
+comphr.glm <- glm(MYOPIC ~ AGE*GENDER*COMPHR, data = myopia, family = binomial)
+summary(comphr.glm) # None significant
+
+studyhr.glm <- glm(MYOPIC ~ AGE*GENDER*STUDYHR, data = myopia, family = binomial)
+summary(studyhr.glm) # None significant
+
+tvhr.glm <- glm(MYOPIC ~ AGE*GENDER*TVHR, data = myopia, family = binomial)
+summary(tvhr.glm) # None significant
+
+diopterhr.glm <- glm(MYOPIC ~ AGE*GENDER*DIOPTERHR, data = myopia, family = binomial)
+summary(diopterhr.glm) # None significant
 ```
 
 **Conclusion:**
@@ -155,104 +217,15 @@ ggplot(hours, aes(x = SPORTHR, y = READHR, color = MYOPIC)) +
 -   After log-transformation, we observed significantly different times on sports between healthy and myopic subjects, which is also evident in Mann-Whitney U Test;
 -   After log-transformation, we observed slightly significant (p-value=0.09062) difference of times on reading between healthy and myopic subjects, which is also evident in Mann-Whitney U Test (with p-value=0.102);
 -   Using the logistic regression model including both SPORTHR and READHR, both times are significantly associated with MYOPIC (with p-values at 0.00729 and 0.02689 respectively), with SPORTHR significantly decreasing the chance to have myopia and READHR significantly increasing the chance to have myopia;
--   The logistic regression model suggests that, every additional hour spent on sports, the log odds of MYOPIC decreases by 0.04747($\pm$ 0.01769) and every additional hour spent on reading, the log odds of MYOPIC increases by 0.08030 ($\pm$ 0.03629).
-
+-   The logistic regression model suggests that, every additional hour spent on sports, the log odds of MYOPIC decreases by 0.04747($\pm$ 0.01769) and every additional hour spent on reading, the log odds of MYOPIC increases by 0.08030 ($\pm$ 0.03629);
+-   After controlling the possible confounding effects of age and gender, only `SPORTHR` is associated with 'MYOPIC\`, and the association IS confounded by age and gender.
 
 ## Predicting Myopia
 
-### Predicting Myopia Using Sport Vector Machines
-
-``` r
-# Load necessary packages
-library(e1071)
-library(caret)
-library(ggplot2)
-library(kernlab)
-library(pROC)
-
-#load & clean data
-myopia <- read.csv('myopia_og.csv', sep=";", header=TRUE)
-myopia <- myopia[myopia$AGE != 9, ]
-myopia$ID <- NULL
-myopia$STUDYYEAR <- NULL
-myopia$MYOPIC <- as.factor(myopia$MYOPIC)
-
-# Split the data into training (70%) and testing (30%) sets
-set.seed(42)
-trainIndex <- createDataPartition(myopia$MYOPIC, p = 0.7, list = FALSE)
-train_data <- myopia[trainIndex, ]
-test_data <- myopia[-trainIndex, ]
-
-# Set up the parameter grid with correct column names
-tune_grid <- expand.grid(
-  C = 2^(-5:5),      # Range of values for C
-  sigma = 2^(-15:3)  # Range of values for sigma (gamma)
-)
-
-# Set up train control
-train_control <- trainControl(
-  method = "cv",        # Cross-validation
-  number = 5,           # Number of folds
-  search = "grid",      # Grid search
-)
-
-# Train the model with parameter tuning
-svm_tuned <- train(
-  MYOPIC ~ SPHEQ + SPORTHR,
-  data = train_data,
-  method = "svmRadial",
-  trControl = train_control,
-  tuneGrid = tune_grid
-)
-
-# Extract the best model
-best_svm_model_rbf <- svm_tuned$finalModel
-
-# Function to plot the decision boundary with RBF kernel and support vectors
-plot_svm_rbf_with_support_vectors <- function(model, myopia) {
-  # Create a grid of values
-  x_range <- seq(min(myopia$SPHEQ) - 1, max(myopia$SPHEQ) + 1, length.out = 100)
-  y_range <- seq(min(myopia$SPORTHR) - 1, max(myopia$SPORTHR) + 1, length.out = 100)
-  grid <- expand.grid(SPHEQ = x_range, SPORTHR = y_range)
-  
-  # Predict the class for each point in the grid
-  grid$Pred <- predict(model, newdata = grid)
-  
-  # Extract support vectors
-  support_vectors_indices <- model@SVindex
-  support_vectors <- myopia[support_vectors_indices, ]
-}
-
-# Split the data into training (70%) and testing (30%) sets
-set.seed(42)
-trainIndex <- createDataPartition(myopia$MYOPIC, p = 0.7, list = FALSE)
-train_data <- myopia[trainIndex, ]
-test_data <- myopia[-trainIndex, ]
-
-# Train the SVM model with probability enabled
-svm_model <- svm(MYOPIC ~ SPHEQ + SPORTHR, 
-                 data = train_data, 
-                 type = "C-classification", 
-                 kernel = "radial", 
-                 probability = TRUE)
-
-# Predict probabilities for test data
-test_pred <- predict(svm_model, newdata = test_data, probability = TRUE)
-
-# Extract probabilities
-probabilities <- attr(test_pred, "probabilities")
-
-# Compute ROC curve
-roc_svm <- roc(test_data$MYOPIC, probabilities[, 2])
-
-# Plot ROC curve
-plot.roc(roc_svm, col = "blue", main = "ROC Curve for SVM Model")
-
-# Print AUC
-text(0.5, 0.2, paste("AUC =", round(auc(roc_svm), 2)), col = "blue", cex = 1)
-```
+Shown in above hypothesis tests, different variables may complicated relation to `MYOPIC`. Here we will apply different types of machine learning methods to build predictive models for `MYOPIC`, using all available models. As there are 6 subjects (4 healthy and 2 myopic subjects) with age at 9 year old, we will exclude them for the purpose of building more reliable models including age.
 
 ### Predicting Myopia Using Random Forests
+
 
 #### Without considering of unbalanced data
 
@@ -265,121 +238,37 @@ library(randomForest)
 
 #read & clean data
 myopia <- read.csv('myopia_og.csv', sep=";", header=TRUE)
-myopia <- myopia[myopia$AGE != 9, ]
-myopia$ID <- NULL
-myopia$STUDYYEAR <- NULL
+myopia <- myopia[myopia$AGE != 9, -c(1,2)]   # Exclude: ID, STUDYYEAR, subjects with AGE==9 
+myopia$MYOPIC <- as.factor(myopia$MYOPIC)
 
-#for missing vals
-#set.seed(42)
-#myopia.imputed <- rfImpute(myopic ~ ., data = myopia, iter = 6)
-#myopic = var we want to predict
-#iter = how many forests should be built to estimate missing vals (usually 4-6)
+# Setting the seed for reproducibility and same splits
+set.seed(0)
 
-model <- randomForest(MYOPIC ~ ., data = myopia, proximity = TRUE)
-model
-#524 not myopic correctly classified as "not myopic"
-#13 not myopic incorrectly classified as "myopic"
-#57 myopic incorrectly classified as "not myopic"
-#24 myopic correctly classified as "myopic"
+# Split into training and testing sets
+my_trainIndex <- createDataPartition(myopia$MYOPIC, p = 0.8, list = FALSE)
+trainData <- myopia[my_trainIndex, ]
+testData <- myopia[-my_trainIndex, ]
 
-#error rates at diff stages of RF
-#1st row: error rates after making 1st tree
-oob.error.myopia <- data.frame(
-  trees = rep(1:nrow(model$err.rate), times = 3),
-  type = as.factor(rep(c('OOB', '0', '1'), each = nrow(model$err.rate))),
-  error = c(model$err.rate[,'OOB'],
-  model$err.rate[,'0'],
-  model$err.rate[,'1']))
+# Convert data.table to data.frame to avoid data.table-specific issues
+trainData <- as.data.frame(trainData)
+testData <- as.data.frame(testData)
 
-#graph of error rates (0, 1, OOB)
-ggplot(data = oob.error.myopia, 
-       aes(x = trees, y = error)) +
-  geom_line(aes(color = type,group = type))
-
-#improving tree
-model <- randomForest(MYOPIC ~ ., data = myopia, ntree = 2000, proximity = TRUE)
-model
-
-oob.values <- vector(length = 7)
-for(i in 1:7) {
-  temp.model <- randomForest(MYOPIC ~ ., data = myopia, mtry = i, ntree = 2000)
-  oob.values[i] <- temp.model$err.rate[nrow(temp.model$err.rate), 1]
-}
-oob.values #mtry = 4/5 seems to be most optimal
-
-distance.matrix <- dist(1-model$proximity) #conver RF proximity matrix into distance matrix
-mds.stuff <- cmdscale(distance.matrix, eig = TRUE, x.ret = TRUE) #find lower-dimensional rep of data
-mds.var.per <- round(mds.stuff$eig/sum(mds.stuff$eig)*100, 1) #computes % of var
-
-#format data for ggplot
-mds.values <- mds.stuff$points
-mds.data <- data.frame(sample = rownames(mds.values),
-                       X = mds.values[,1],
-                       Y = mds.values[,2],
-                       status = myopia$MYOPIC)
-
-#graph on ggplot
-ggplot(data = mds.data, aes(x=X, y=Y, label=sample)) +
-  geom_text(aes(color = status)) +
-  theme_bw() +
-  xlab(paste('MDS1 - ', mds.var.per[1], '%', sep = '')) +
-  ylab(paste('MDS2 - ', mds.var.per[2], '%', sep = '')) +
-  ggtitle("MDS plot using (1- Random Forest Proximities)")
-
-#improved MDS plot
-ggplot(data = mds.data, aes(x = X, y = Y, color = status, label = sample)) +
-  geom_point(size = 3, alpha = 0.7) +  # Use points instead of text for clarity
-  scale_color_manual(values = c('0' = 'blue', '1' = 'red')) +
-  theme_minimal() +
-  xlab(paste('MDS1 - ', mds.var.per[1], '% variance', sep = '')) +
-  ylab(paste('MDS2 - ', mds.var.per[2], '% variance', sep = '')) +
-  ggtitle("MDS Plot using (1 - Random Forest Proximities)") +
-  theme(plot.title = element_text(hjust = 0.5))
-
-#calculate feature importance
-importance_scores <- importance(model)
-importance_scores
-
-par(cex = 0.7) #change font size
-varImpPlot(model, main = "Feature Importance: Mean Decrease in Gini")
-par(cex = 1)
-
-#convert to data frame for ggplot
-importance_df <- data.frame(Feature = rownames(importance_scores), 
-                            Importance = importance_scores[, 1])
-
-#plot feature importance
-ggplot(importance_df, aes(x = reorder(Feature, Importance), y = Importance)) +
-  geom_bar(stat = 'identity') +
-  coord_flip() +
-  xlab('Features') +
-  ylab('Importance') +
-  ggtitle('Feature Importance in Random Forest Model') +
-  theme_bw()
-
-#ROC curve
-install.packages("pROC")
-library(pROC)
-
-#use the model's OOB predictions
-oob_predictions <- predict(model, type = "response", predict.all = TRUE)  # probabilities for the positive class (MYOPIC = 1)
-
-#create the ROC curve
-roc_curve <- roc(myopia$MYOPIC, oob_predictions)
-auc_value <- auc(roc_curve)
-print(auc_value)
-
-#plot the ROC curve
-plot(roc_curve, col = "blue", lwd = 2, main = "ROC Curve for Random Forest Model")
-
-text(0.5, 0.2, paste("AUC =", round(auc(roc_curve), 2)), col = "blue", cex = 1)
+rf.model <- randomForest(MYOPIC~., data = trainData, ntree = 2000, proximity = TRUE)
+rf.model
+#Confusion matrix:
+#    0    1   class.error
+# 0 419   8   0.01873536
+# 1  55   9   0.85937500
 ```
+
+We observe that the built random forest cannot predict myopia well even in the training set, with only 9 myopic subjects classified correctly but 55 myopic subjects wrongly classified as healthy subjects. This is due to the unbalanced data, i.e., 64 myopic subjects out of a total of 519 subjects in the training set. So we need apply certain methods to manage the unbalanced data before we built the random forest.
+
 
 #### Using SMOTE for unbalanced data
 
+Here we will apply the SMOTE technique to help build the random forest for our unbalanced data.
+
 ``` r
-#random forest tuned
-# Load necessary libraries
 library(ggplot2)
 library(tidyverse)
 library(caret)
@@ -390,15 +279,25 @@ library(smotefamily)
 
 # Read & clean data
 myopia <- read.csv('myopia_og.csv', sep=";", header=TRUE)
+myopia <- myopia[myopia$AGE != 9, -c(1,2)]   # Exclude: ID, STUDYYEAR, subjects with AGE==9 
 myopia$MYOPIC <- as.factor(myopia$MYOPIC)
-myopia <- myopia[myopia$AGE != 9, ]
-myopia$ID <- NULL
-myopia$STUDYYEAR <- NULL
+
+# Setting the seed for reproducibility and same splits
+set.seed(0)
+
+# Split into training and testing sets
+my_trainIndex <- createDataPartition(myopia$MYOPIC, p = 0.8, list = FALSE)
+trainData <- myopia[my_trainIndex, ]
+testData <- myopia[-my_trainIndex, ]
+
+# Convert data.table to data.frame to avoid data.table-specific issues
+trainData <- as.data.frame(trainData)
+testData <- as.data.frame(testData)
 
 # Apply SMOTE
-smote_output <- SMOTE(X = myopia[, -which(names(myopia) == "MYOPIC")],
-                      target = myopia$MYOPIC, 
-                      K = 5, 
+smote_output <- SMOTE(X = trainData[, -which(names(myopia) == "MYOPIC")],
+                      target = trainData$MYOPIC, 
+                      K = 8, 
                       dup_size = 1)
 
 # Combine the resulting data
@@ -429,7 +328,7 @@ print(rf_gridsearch)
 best_params <- rf_gridsearch$bestTune
 best_ntree <- ifelse(!is.null(best_params$.ntree), best_params$.ntree, 2000)
 best_nodesize <- ifelse(!is.null(best_params$.nodesize), best_params$.nodesize, 1)
-best_maxnodes <- ifelse(!is.null(best_params$.maxnodes), best_params$.maxnodes, NULL)
+best_maxnodes <- best_params$.maxnodes
 
 set.seed(42)
 myopia_balanced$MYOPIC <- as.factor(myopia_balanced$MYOPIC)
@@ -437,10 +336,10 @@ model <- randomForest(MYOPIC ~ ., data = myopia_balanced, ntree = 2000, proximit
 model
 
 # Evaluate the model
-oob_predictions <- predict(model, type = "prob")[, 2] # Probabilities for the positive class
+oob_predictions <- predict(model, newdata=testData, type = "prob")[, 2] # Probabilities for the positive class
 
 # Create the ROC curve
-roc_curve <- roc(myopia_balanced$MYOPIC, as.numeric(oob_predictions))
+roc_curve <- roc(testData$MYOPIC, as.numeric(oob_predictions))
 auc_value <- auc(roc_curve)
 print(paste("AUC:", auc_value))
 
@@ -448,6 +347,9 @@ print(paste("AUC:", auc_value))
 plot(roc_curve, col = "blue", lwd = 2, main = "ROC Curve for Random Forest Model")
 text(0.5, 0.2, paste("AUC =", round(auc(roc_curve), 2)), col = "blue", cex = 1)
 ```
+
+Achieved AUC at 0.89.
+
 
 ### Predicting Myopia Using Boosting Trees
 
@@ -461,19 +363,11 @@ library(ggplot2)
 library(dplyr)
 
 #load & clean data
-myopia <- read.csv("myopia_og.csv", head = TRUE, sep = ";")
+myopia <- read.csv('myopia_og.csv', sep=";", header=TRUE)
+myopia <- myopia[myopia$AGE != 9, -c(1,2)]   # Exclude: ID, STUDYYEAR, subjects with AGE==9 
+myopia$MYOPIC <- as.factor(myopia$MYOPIC)
 
-myopia <- myopia %>% 
-  mutate(MYOPIC = as.factor(MYOPIC))
-
-myopia <- myopia %>% 
-  filter(AGE != 9)
-
-myopia$ID <- NULL
-myopia$STUDYYEAR <- NULL
-
-#XG BOOST
-# Setting the seed for reproducibility
+# Setting the seed for reproducibility and same splits
 set.seed(0)
 
 # Split into training and testing sets
@@ -548,17 +442,14 @@ library(data.table)
 library(pROC)
 library(ggplot2)
 library(dplyr)
+library(DiagrammeR)
 
 #load & clean data
-my_data <- read.csv("myopia_og.csv", head = TRUE, sep = ";")
+my_data <- read.csv('myopia_og.csv', sep=";", header=TRUE)
+my_data <- my_data[my_data$AGE != 9, -c(1,2)]   # Exclude: ID, STUDYYEAR, subjects with AGE==9 
+my_data$MYOPIC <- as.factor(my_data$MYOPIC)
 
-my_data <- my_data %>% 
-  mutate(MYOPIC = as.factor(MYOPIC))
-
-my_data <- my_data %>% 
-  filter(AGE != 9)
-
-my_data <- my_data[, !colnames(myopia)]
+#my_data <- my_data[, !colnames(myopia)]
 
 glimpse(my_data)
 
@@ -690,14 +581,111 @@ abline(a = 0, b = 1, lty = 2, col = "gray")
 text(0.75, 0.2, paste("AUC =", round(auc(roc_curve), 2)), col = "blue", cex = 1.5)
 ```
 
-**Conclusion:**
+### Predicting Myopia Using Sport Vector Machines
 
--   
+``` r
+library(e1071)
+library(caret)
+library(ggplot2)
+library(kernlab)
+library(pROC)
 
--   
+#load & clean data
+myopia <- read.csv('myopia_og.csv', sep=";", header=TRUE)
+myopia <- myopia[myopia$AGE != 9, -c(1,2)]   # Exclude: ID, STUDYYEAR, subjects with AGE==9 
+myopia$MYOPIC <- as.factor(myopia$MYOPIC)
 
--   
+# Split the data into training (80%) and testing (20%) sets, stratified under MYOPIC
+set.seed(42)
+trainIndex <- createDataPartition(myopia$MYOPIC, p = 0.8, list = FALSE)
+train_data <- myopia[trainIndex, ]
+test_data <- myopia[-trainIndex, ]
 
--   
+# Set up the parameter grid with correct column names
+tune_grid <- expand.grid(
+  C = 2^(-5:5),      # Range of values for C
+  sigma = 2^(-15:3)  # Range of values for sigma (gamma)
+)
 
--   
+# Set up train control
+train_control <- trainControl(
+  method = "cv",        # Cross-validation
+  number = 5,           # Number of folds
+  search = "grid",      # Grid search
+)
+
+# Train the model with parameter tuning
+svm_tuned <- train(
+  #MYOPIC ~ SPHEQ + SPORTHR,
+  MYOPIC ~ SPHEQ + SPORTHR + AGE + GENDER,
+  data = train_data,
+  method = "svmRadial",
+  trControl = train_control,
+  tuneGrid = tune_grid
+)
+
+# Print the best parameters and model
+print(svm_tuned)
+
+# Extract the best model
+best_svm_model_rbf <- svm_tuned$finalModel
+
+# Function to plot the decision boundary with RBF kernel and support vectors
+plot_svm_rbf_with_support_vectors <- function(model, data, age, gender) {
+  # Create a grid of values
+  x_range <- seq(min(data$SPHEQ) - 1, max(data$SPHEQ) + 1, length.out = 100)
+  y_range <- seq(min(data$SPORTHR) - 1, max(data$SPORTHR) + 1, length.out = 100)
+  grid <- expand.grid(SPHEQ = x_range, SPORTHR = y_range, AGE=age, GENDER=gender)
+  
+  # Predict the class for each point in the grid
+  grid$Pred <- predict(model, newdata = grid)
+  
+  # Extract support vectors
+  support_vectors_indices <- model@SVindex
+  support_vectors <- data[support_vectors_indices, ]
+  
+  # Check if support_vectors is empty
+  if (nrow(support_vectors) == 0) {
+    stop("No support vectors found.")
+  }
+  
+  # Plot the decision boundary and support vectors
+  ggplot() +
+    geom_tile(data = grid, aes(x = SPHEQ, y = SPORTHR, fill = Pred), alpha = 0.3) +
+    geom_point(data = data, aes(x = SPHEQ, y = SPORTHR, color = MYOPIC), size = 2) +
+    geom_point(data = support_vectors, aes(x = SPHEQ, y = SPORTHR), 
+               color = 'black', shape = 17, size = 2, stroke = 1.5) +
+    scale_fill_manual(values = c('lightblue', 'lightcoral'), guide = "none") +
+    labs(title = "SVM with RBF Kernel Decision Boundary and Support Vectors",
+         x = "SPHEQ",
+         y = "SPORTHR") +
+    theme_minimal()
+}
+
+# Plot using the training data
+plot_svm_rbf_with_support_vectors(best_svm_model_rbf, train_data,age=6, gender=1)
+
+# Train the SVM model with probability enabled
+svm_model <- svm(MYOPIC ~ SPHEQ + SPORTHR + AGE + GENDER, 
+                 data = train_data, 
+                 type = "C-classification", 
+                 kernel = "radial", 
+                 probability = TRUE)
+
+# Predict probabilities for test data
+test_pred <- predict(svm_model, newdata = test_data, probability = TRUE)
+
+# Extract probabilities
+probabilities <- attr(test_pred, "probabilities")
+
+# Compute ROC curve
+roc_svm <- roc(test_data$MYOPIC, probabilities[, 2])
+
+# Plot ROC curve
+plot.roc(roc_svm, col = "blue", main = "ROC Curve for SVM Model")
+
+# Print AUC: 0.87
+text(0.5, 0.2, paste("AUC =", round(auc(roc_svm), 2)), col = "blue", cex = 1)
+```
+
+ 
