@@ -1,6 +1,6 @@
 # COSMOS Project on Juvenile Myopia
 
-**Lucia Zhang (Captain), Giang Tran, Luke Owyang, April Pan**
+**Lucia Zhang, Giang Tran, Luke Owyang, April Pan**
 
 ## Data Introduction
 
