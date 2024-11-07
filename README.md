@@ -32,7 +32,7 @@ summary(data)
 xtabs(~data$MYOPIC)
 ```
 
-Since there are 537 healthy subjects and only 81 myopic subjects, the dataset is unbalanced with slight over 13% subjecgts as myopia cases.
+Since there are 537 healthy subjects and only 81 myopic subjects, the dataset is unbalanced with slight over 13% subjects as myopia cases.
 
 ## Data Exploration via Correlation Matrix
 
